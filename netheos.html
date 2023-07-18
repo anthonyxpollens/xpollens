@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title> Mon parcours client </title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css"/>
+    <style>
+        #container {
+            padding: 20px;
+            margin: 0 auto;
+        }
+        #message-container {
+            display: none;
+            width: 100%;
+            text-align: center;
+            margin: 200px auto;
+        }
+        #iframe-wrapper {
+            width: 100%;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <header></header>
+    <div id="iframe-wrapper">
+        <iframe id="signbook" width="99%" scrolling="no" frameBorder="no" allow="microphone; camera"></iframe>
+    </div>
+    <div id="message-container">
+        <h4 id="message-title"></h4>
+        <p id="message-text"></p>
+    </div>
+    <footer></footer>
+</div>
+
+<script src="https://api.ekeynox.net/contract/signbook/v3/script/signbook.js"></script>
+
+<script type="text/javascript">
+
+    var MESSAGE_TITLES = {
+        'EXIT': "A bientôt !",
+        'SUSPENDED': "Pièces justificatives en cours de contrôle",
+        'FINALIZED': "Dossier complet",
+        'WAITING': "Dossier en cours de validation",
+        'ACCEPTED': "Félicitations !",
+        'REJECTED': "Désolé"
+    };
+
+    var MESSAGE_TEXTS = {
+        'EXIT': "Vous pouvez revenir quand vous le souhaitez compléter votre dossier.",
+        'SUSPENDED': "Une ou plusieurs des pièces que vous avez soumises sont en cours d'examen par nos opérateurs. Merci de revenir plus tard.",
+        'FINALIZED': "Votre dossier est désormais complet, nous vous recontacterons quand nous l'aurons examiné.",
+        'WAITING': "Votre dossier est en cours d'examen.",
+        'ACCEPTED': "Votre dossier a été accepté.",
+        'REJECTED': "Votre dossier a été refusé."
+    };
+
+    var ERROR_TEXTS = {
+        'BROWSER_NOT_SUPPORTED': "Désolé, ce navigateur n'est pas supporté, veuillez utiliser Chrome, Firefox, Safari, IE10+, Edge ou Opera."
+    };
+
+    var GENERIC_ERROR_TEXT = "Nos serveurs sont en cours de maintenance, merci de revenir plus tard.";
+
+    /**
+     * Show a message instead of the SignBook
+     * @param title
+     * @param text
+     */
+    function showMessage(title, text) {
+        document.getElementById('iframe-wrapper').style.display = 'none';
+        document.getElementById('message-container').style.display = 'block';
+        document.getElementById('message-title').innerHTML = title;
+        document.getElementById('message-text').innerHTML = text;
+    }
+
+    function onUserEventMessageFn(event) {
+        // All user actions => used by web analytics libraries like Google Analytics
+        console.log("user event : " + event.action);
+    }
+
+    function onClientFileEventMessageFn(event) {
+  // Event coming from eKeynox SaaS with data concerning the state of the client file
+	window.addEventListener('message', function(evt){
+    var msg = JSON.parse(evt.data);
+    if (msg && (msg.type === 'identity' || msg.type === 'clientFileEvent' )) {
+        console.log('message: ',msg);
+    }
+}, false);
+	    
+  if (
+    (event.changedState &&
+      event.changedState.from === "PENDING" &&
+      (event.changedState.to === "WAITING" ||
+        event.changedState.to === "ACCEPTED")) ||
+    event.participantState === "WAITING"
+  ) {
+    showMessage(MESSAGE_TITLES["FINALIZED"], MESSAGE_TEXTS["FINALIZED"]);
+  } else {
+    if (event.state !== "PENDING") {
+      showMessage(MESSAGE_TITLES[event.state], MESSAGE_TEXTS[event.state]);
+    }
+  }
+}
+
+
+    function onExitEventMessageFn(event) {
+        showMessage(MESSAGE_TITLES['EXIT'], MESSAGE_TEXTS['EXIT']);
+    }
+
+    function onErrorEventMessageFn(event) {
+        // Errors detected by the SignBook (server errors, invalid state, unsupported browser, etc.)
+        if (event.cause === 'REJECTED_STATE' || event.cause === 'ACCEPTED_STATE'
+                || event.cause === 'SUSPENDED_STATE' || event.cause === 'WAITING_STATE') {
+            // Do not deal with these "errors", this is just for backwards compatibility purpose...
+            return;
+        }
+        showMessage('Erreur', (ERROR_TEXTS[event.cause] ? ERROR_TEXTS[event.cause] : GENERIC_ERROR_TEXT) + "(" + event.cause + ")");
+    }
+
+    /**
+     * Called on page loaded
+     */
+    window.onload = function () {
+        var signbook = new NthSignbook({
+            iframeSelectorId: 'signbook',
+            url: 'https://integration-api.ekeynox.net/contract/signbook/v3/#/identity-page',
+            options: {
+                renderMode: 'pretty',
+		vidRequestMode: 'redirect'
+            },
+            onUserEventMessage: onUserEventMessageFn,
+            onClientFileEventMessage: onClientFileEventMessageFn,
+            onExitEventMessage: onExitEventMessageFn,
+            onErrorEventMessage: onErrorEventMessageFn,	
+	});
+    }
+
+</script>
+
+</body>
+</html>
